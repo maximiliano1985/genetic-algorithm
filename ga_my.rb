@@ -77,12 +77,12 @@ module GA
     # @param [Hash] args a +Hash+ of initialization values
     def initialize(args = {})
         @cfg = {
-          :tol        => 0.001, # accurancy of the solution 
-          :p_mutation => 0.2,   # probability of mutation
-          :p_crossover=> 0.8,   # probability of cross over
-          :i_o        => {},    # inverval of values used for define the first population
-          :npop       => 50,    # number of population to be computed
-          :pconv      => true,
+          :tol        => 1E-3 , # accurancy of the solution 
+          :p_mutation => 0.2  , # probability of mutation
+          :p_crossover=> 0.8  , # probability of cross over
+          :i_o        => {}   , # inverval of values used for define the first population
+          :npop       => 50   , # number of population to be computed
+          :pconv      => true ,
           :plotopt    => {:title  => 'Genetic Algorithm Convergence',
                           :xlabel => 'No. iteration',
                           :ylabel => 'Objective function value',
@@ -262,19 +262,14 @@ if __FILE__ == $0 then
   #f = lambda { |p| ( 1 - p[0] ) ** 2 + 100 * ( p[1] - p[0] ) ** 2 } # Rosenbroke function
   
   # Instantiate the optimizer, with tolerance and dimension
-  pop = GA::Population.new( dom={:X =>[5,10], :Y=>[-10.23,54.234]}  )  
   p pop.population
-  pop_b = []
-  pop.population.each{ |v| pop_b << pop.encode(v[:chromosome]) } 
-  p pop_b
-  #opt = NMM::Optimizer.new( :dim => 3, :tol => 1E-5,:niter => 50, :exp_f => 2,:cnt_f => 0.5)
-  
-  # Define the starting points, i.e. the first guess simplex
-  #opt.start_points = [
-  #  Vector[0.1,0.1],
-  #  Vector[1.2,0.0],
-  #  Vector[0.0,0.8] 
-  #]
-  #opt.loop {|p| f.call(p)}
+  opt = GA::Optimizer.new(
+    :tol         => 1E-5, # accurancy of the solution 
+    :p_mutation  => 0.2,   # probability of mutation
+    :p_crossover => 0.8,   # probability of cross over
+    :i_o         => {:X =>[5,10], :Y=>[-10.23,54.234]},
+    :npop        => 50,    # number of population to be computed)
+  )
+  opt.loop {|p| f.call(p)}
 
 end
