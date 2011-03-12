@@ -6,7 +6,6 @@
 #
 
 require 'rubygems'
-require 'matrix'
 require 'gnuplotr'
 
 class Vector
@@ -32,22 +31,34 @@ module GA
     attr_reader :population
 
     # i_o is the inverval of values used for define the first population
-    # dim is the population size, i_o is the hash with the range of the values for the parameters of the first population
-    def initialize( dim, i_o = {})
-        @dimension = dim # is number of cromosomes in the population
+    # values for the parameters of the first population
+    def initialize(i_o = {})
+        raise ArgumentError, "Need an Integer instead of #{dim.class}" unless dim.kind_of? Integer
+        raise ArgumentError, "Need an Hash instead of #{i_o.class}" unless i_o.kind_of? Hash
+        @dimension = i_o.size # is number of cromosomes in the population
         max_v = 0.0
-        i_o.each_value { |v| max_v = v.max if v.max > max_v} 
+        # find the greatest number in the interval of values  the first population
+        i_o.each_value { |v| max_v = v.max if v.max > max_v}
         num_i = max_v.to_i # the integer part
         num_d = ( (max_v-max_v.to_i)*1000 ).to_i# the decimal part
         @nbit = [ num_i.to_s(2).size , num_d.to_s(2).size ].max # this is used to set the number of bit necessary to encode in a binary gene the inputs
         @size = i_o.size     # is the problem size, the domain dimention of objective function
         @population = [] # initialize the population, is an hash which keys are: :cromosome and :fitness
-        dim.times do # for each cromosome do...
+        rr = Random.new()
+        dim.times do # for each cromosome of the initial population do...
             cr = []
             # generate the gene randomly (it must lie in the domain defined by i_o)
-            i_o.each_value{ |v| cr << rand()*(v.max-v.min) + v.min } # generates a random number from a uniform distribution
+            i_o.each_value{ |v| cr << rr.rand(v.min..v.max) } # generates a random number from a uniform distribution
             @population << { :cromosome => cr } 
         end
+        @ready = false # tell then the simplex is ready for the optimization
+    end
+    
+    # Performs the anslyis of the population. It sorts the cromosomes in ascending order
+    # acordingly to theirs fitness.
+    def reorder
+        return if @ready
+        @population = @population.sort {|a,b| a[:fitness]<=>b[:fitness] }
     end
     
     # this is used to convert the input values into a binary string (the cromosome)
@@ -79,6 +90,8 @@ module GA
     
     def performance
     end
+         
+    end
   end # class Population
 
   # Class that implements a general n-dimensional Nelder-Meade Method (NMM).
@@ -94,15 +107,69 @@ module GA
     # are passed are merged with those defaults.
     # @param [Hash] args a +Hash+ of initialization values
     def initialize(args = {})
+        @cfg = {
+          :tol        => 0.001, # the accurancy of the solution 
+          :p_mutation => 0.2,   # the probability of mutation
+          :p_crossover=> 0.8,   # the probability of cross over
+          :i_o        => {},
+          :npop       => 50,     # the number of population to be computed
+          :pconv      => true,
+          :plotopt    => {:title  => 'Genetic Algorithm Convergence',
+                          :xlabel => 'No. iteration',
+                          :ylabel => 'Objective function value',
+                          :yrange => [ -10 , 10 ],
+                          :grid   => "set grid"
+                         }
+        }
+        raise "Error with the assigned mutation probability:\n it is #{@cfg[:p_mutation]} but must be 0 <= p_mutation <= 1 " unless @cfg[:p_mutation] >= 0 and @cfg[:p_mutation] <= 1 
+        raise "Error with the assigned crossover probability:\n it is #{@cfg[:p_crossover]} but must be 0 <= p_crossover <= 1 " unless @cfg[:p_crossover] >= 0 and @cfg[:p_crossover] <= 1 
+        @cfg.merge! args
+        @population = Population.new(@cfg[:i_o])
+        @start_points = []
+        @status = :filling
+        @iteration = 0
+        if @cfg[:pconv] == true # this is the plot
+            @gp = GNUPlotr.new
+            # enable command history recording
+            @gp.record = true
+            # Issue raw gnuplot commands
+            @gp.raw @cfg[:plotopt][:grid]
+            # Some magic mapping works too:
+            @gp.set_grid
+            @gp.set_title @cfg[:plotopt][:title]  , :font => "Times New Roman,18"
+            @gp.set_xlabel @cfg[:plotopt][:xlabel], :font => "Times New Roman,18"
+            @gp.set_ylabel @cfg[:plotopt][:ylabel], :font => "Times New Roman,18"
+            @gp.set_xrange( 0 .. @cfg[:niter])
+            @gp.set_yrange(@cfg[:plotopt][:yrange][0] .. @cfg[:plotopt][:yrange][1])
+        end # if @cfg
     end
      
     def evolve
     end
     
-    def mutation
+    # compares two cromosomes and selects the one with the best fitting.
+    # This is binary tournament
+    def selection(pop)
+        i , j = rand( pop.size ) , rand(pop.size)
+        j = rand(pop.size) while j == i # if unfortunatly j = i, evaluates j again
+        return (pop[i][:fitness] > pop[j][:fitness]) ? pop[i] : pop[j]
     end
     
-    def crossover
+    # the cromosome is a string of '0' and '1', rate [0,1]. mutant is also a string
+    def mutation(cromosome, rate)
+        mutant = ""
+        cromosome.size.times do |i|
+            gene = cromosome[i]
+            # change the bit value only if the rand [0,1] is minor than the mutation probability
+            mutant << ((rand < rate) ? ((gene == '1') ? "0" : "1") : gene)
+        end # cromosome
+        return mutant
+    end # def mutation
+    
+    # both father and mather are strings, rate [0,1] is the crossover probability
+    # the crossover returns two childs 
+    def crossover(father, mother, rate)
+        
     end
     
     def invertion
