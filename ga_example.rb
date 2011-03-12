@@ -81,7 +81,7 @@ end
             puts " > gen #{gen}, best: #{best[:fitness]}, #{best[:bitstring]}"
             break if best[:fitness] >= num_bits
         end
-            return best
+        return best
     end
 
 

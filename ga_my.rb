@@ -53,11 +53,13 @@ module GA
         end
     end
     
-    ############### manca questo
-    ############################
-    ############################
-    ############################
-    def performance
+    # Is the difference of the function value for the best and the worst chromosome 
+    # Input: array of hashes. Output: float
+    def norm
+        pop = @population.sort{ |x, y| y[:fitness] <=> x[:fitness] }
+        best = pop.first
+        worst = pop.last
+        return ( best[:fitness] - worst[:fitness] ).abs
     end
   end # class Population
 
@@ -109,43 +111,64 @@ module GA
             @gp.set_xrange( 0 .. @cfg[:niter])
             @gp.set_yrange(@cfg[:plotopt][:yrange][0] .. @cfg[:plotopt][:yrange][1])
         end # if @cfg
-    end
-    
-    def loop
-    end
+    end 
      
-    def step( @cfg, @population, @cfg[:p_crossover], @cfg[:p_mutation] )
+    def loop( ary = nil )
         raise ArgumentError, "Block needed" unless block_given?
         # evaluates the cromosomes and converts them into a string of bits
         @population.each do |c|
-            c[:fitness] = yield( c[:chromosome] ) # evaluates the chromosome
+            c[:fitness]   = yield( c[:chromosome] ) # evaluates the chromosome
             c[:bitstring] = encode( c[:chromosome] ) # converts the chromosome into a string of bits
         end
-        best = @population.sort{ |x, y| y[:fitness] <=> x[:fitness] }.first
-        @cfg[:npop].times do |gen|
-            selected = Array.new( @population.size ){ |i| selection( @population ) } # the size of selected is the half of the population size
+        
+        until converged? or @iteration > @cfg[:npop]
+            selected = Array.new( @population.size ){ |i| selection( @population ) }
             bit_selected = []
             selected.each{ |v| bit_selected << v[:bitstring] }
-            childs_a = evolve( bit_selected, @population.size, @cfg[:p_crossover], @cfg[:p_mutation] ) # @population.size is used to set the number of chromosomes in the new generation
-            # the child array of floats is converted into an array of hashes, each with keys: :chromosome, :bitstring , :fitness
-            childs = []
-            childs_a.each do |c|
-                childs << {
+            # childs_a is an array of floats. @population.size is used to set the number of chromosomes in the new generation
+            childs = evolve( bit_selected, @population.size, @cfg[:p_crossover], @cfg[:p_mutation] ) 
+            # child is converted into an array of hashes, each with keys: :chromosome, :bitstring , :fitness
+            @population = [] # reset the population and then update it
+            childs.each do |c|
+                @population << {
                  :bitstring  => c,    
                  :chromosome => decode( c ), # converts the string of bits into an array of floats
                  :fitness    => yield( c.decode )# evaluates the array of floats  
                 }
-            end
-            children.sort!{ |x,y| y[:fitness] <=> x[:fitness] } # sort! frozens the array during the sorting
-            best = children.first if children.first[:fitness] >= best[:fitness]
-            population = children
-            puts " > gen #{gen}, best: #{best[:fitness]}, #{best[:bitstring]}"
-            break if best[:fitness] >= num_bits
-        end
-            return best
+            end # childs do
+
+            puts "#{@iteration}st generation, best: #{best[:chromosome]} ---> #{best[:fitness]}"
+            
+            # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
+            if @cfg[:pconv] == true
+                sdata = [] if @iteration == 0 # at first iteration initialize the matrix containing simplex data
+                @population.each{ |v| sdata << v[:fitness] }
+                sleep 0.1
+                # a. initialize the data sets for the plot
+                @gp.new_series
+                # b. fill the data sets
+                sdata.each_with_index { |v,i| @gp.series[ i.to_s.to_sym ] << [ @iteration , v ] }
+                # c. close the data sets
+                @gp.series.close
+                # d. plot the data sets
+                @iteration == 0 ? @gp.plot , "with points"    :    @gp.replot , "with lines"
+            end # if @cfg
+            @iteration += 1
+        end # until converged
+        return @population.sort!{ |x, y| y[:fitness] <=> x[:fitness] }.first
     end # def loop
     
     private
+    # Input: @cfg. Output: boolean value
+    def converged?
+      n = @population.norm
+      if n then
+        @population.norm < @cfg[:tol] # this returns true or false
+      else
+        false
+      end
+    end
+    
     # Input: array of bit strings. Output: array of bit strings
     def evolve(selected, pop_size, p_cross, p_mut)
         children = []
@@ -177,6 +200,7 @@ module GA
         j = rand(pop.size) while j == i # if unfortunatly j = i, evaluates j again
         selected << (pop[i][:fitness] > pop[j][:fitness]) ? pop[i] : pop[j]
         return selected
+        # the size of selected is the half of the population size
     end
     
     # the chromosome is a string of '0' and '1', rate [0,1]. mutant is also a string
@@ -232,18 +256,17 @@ module GA
 end # module GA
 
 if __FILE__ == $0 then
-  pop = GA::Population.new( 10 , dom={:A =>[0,1], :B=>[-10.23,54.234]}  )  
+  # Test function
+  f = lambda {|p| p[0]**2 + 3*p[1]**2+10} # a trivial parabola
+  #f = lambda { |p| p[0] ** 2 - 4 * p[0] + p[1] ** 2  -p[1] - p[0] * p[1]}
+  #f = lambda { |p| ( 1 - p[0] ) ** 2 + 100 * ( p[1] - p[0] ) ** 2 } # Rosenbroke function
+  
+  # Instantiate the optimizer, with tolerance and dimension
+  pop = GA::Population.new( dom={:X =>[5,10], :Y=>[-10.23,54.234]}  )  
   p pop.population
   pop_b = []
   pop.population.each{ |v| pop_b << pop.encode(v[:chromosome]) } 
   p pop_b
-    
-  # Test function
-  #f = lambda {|p| p[0]**2 + 3*p[1]**2+10} # a trivial parabola
-  #f = lambda { |p| p[0] ** 2 - 4 * p[0] + p[1] ** 2  -p[1] - p[0] * p[1]} # a non trivial parabola
-  #f = lambda { |p| ( 1 - p[0] ) ** 2 + 100 * ( p[1] - p[0] ) ** 2 } # the non trivial Rosenbroke function
-  # Instantiate the optimizer, with tolerance and dimension (it is the dimension
-  # of the simplex, so number of parameters + 1 !!!)
   #opt = NMM::Optimizer.new( :dim => 3, :tol => 1E-5,:niter => 50, :exp_f => 2,:cnt_f => 0.5)
   
   # Define the starting points, i.e. the first guess simplex
