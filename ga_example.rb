@@ -39,7 +39,7 @@ end
     def point_mutation( bitstring , rate = 1.0/bitstring.size )
         child = ""
         bitstring.size.times do |i|
-            bit = bitstring[i] #.chr # for each bit in the string
+            bit = bitstring[i] # for each bit in the string
             child << ((rand < rate) ? ((bit == '1') ? "0" : "1") : bit) # change the bit value only if the rand is minor than the mutation probability
         end
         return child
