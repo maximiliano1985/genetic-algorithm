@@ -61,7 +61,7 @@ module GA
     def initialize(args = {})
         @cfg = {
           :tol        => 1E-3 , # accurancy of the solution 
-          :nbit       => 64   , # number of bits used to encode the cromosomes into a binary string
+          :nbit       => 10   , # number of bits used to encode the cromosomes into a binary string
           :p_mutation => 0.2  , # probability of mutation
           :p_crossover=> 0.8  , # probability of cross over
           :i_o        => {}   , # inverval of values used for define the first population
@@ -116,16 +116,16 @@ module GA
             # child is converted into an array of hashes, each with keys: :chromosome, :bitstring , :fitness
             @population = [] # reset the population and then update it
             childs.each do |c|
-                p c
+                dec =  decode( c[:bitstring] )
                 @population << {
-                 :chromosome => decode( c ), # converts the string of bits into an array of floats
-                 :bitstring  => c,    
-                 :fitness    => yield( decode( c ) )# evaluates the array of floats  
+                 :bitstring  => c[:bitstring],
+                 :chromosome => dec,           # converts the string of bits into an array of floats   
+                 :fitness    => yield( dec )   # evaluates the array of floats  
                 }
             end # childs do
-
-            puts "#{@iteration}st generation, best: #{best[:chromosome]} ---> #{best[:fitness]}"
-            
+            @best = @population.sort!{ |x, y| y[:fitness] <=> x[:fitness] }.first
+            puts "#{@iteration}st generation, best: #{@best[:chromosome]} ---> #{@best[:fitness]}"
+            puts "_________________________________________________________"
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
             if @cfg[:pconv] == true
                 sdata = [] if @iteration == 0 # at first iteration initialize the matrix containing simplex data
@@ -142,7 +142,7 @@ module GA
             end # if @cfg
             @iteration += 1
         end # until converged
-        return @population.sort!{ |x, y| y[:fitness] <=> x[:fitness] }.first
+        return @best
     end # def loop
     
     private
@@ -211,7 +211,7 @@ module GA
         raise "Error in crossover: mother must be a String instead of a #{mother.class}" unless mother.kind_of? String
         return father , mother if rand >= rate # don't do the cross over if rand is maior or equal than the crossover probability 
         point = (rand*mother.size).to_i # sets the crossover point randomly
-        return father[0..point] + mother[point..(mother.size)] , mother[0..point] + father[point..(father.size)]
+        return father[0..point-1] + mother[point..(mother.size)] , mother[0..point-1] + father[point..(father.size)]
     end
     
     # this is used to convert the input values into a binary string (the chromosome)
@@ -219,34 +219,36 @@ module GA
     def encode( ary = [] )
         ary_b = ""
         ary.each { |v|
-            i_b =  v.to_i.to_bin( @nbit )
+            i_b =  v.to_i.abs.to_bin( @nbit )
             # how to encode the sign: the first bit is 0 if i_b is >= 0, and 1 if it's < 0
-            i_b.to_i >= 0 ? i_b[0] = "0" : i_b[0] = "1"
-            d_b = ( ( (v-v.to_i)/@cfg[:tol] ).to_i ).to_bin( @nbit )
-            ary_b = i_b+d_b
+            v.to_i >= 0 ? i_b[0] = "0" : i_b[0] = "1"
+            d_b = ( ( (v-v.to_i)/@cfg[:tol] ).to_i.abs ).to_bin( @nbit )
+            ary_b += i_b+d_b
         }
         return ary_b
     end
     
     # this is used to decode the binary chromosome string  into an array of floats
     # Input: one bit string. Output: array of floats
-    def decode( str ) 
+    def decode( str )
         ng = str.size / @nbit # is the number of genes in one chromosome
-        raise "Error in the chromosome decodification: you have #{ng} genes of #{@nbit} bits, and #{str.size} bits in the chromosome" unless ng * @nbit == str.size
+        raise "Error in the chromosome decodification: you have #{ng} genes of #{@nbit} bits, and #{str.size} bits in the chromosome" unless ng * @nbit  == str.size
         cr = []
         dots = "" 
         @nbit.times{ dots += "." } # generates a string with @nbit dots: "..."
         dots = "(" + dots + ")"    # adds the parentesys: "(...)"
-        d = Regexp.new( dots )     # converst dots into a regulare expression: /(..)/
-        str_a = str.split( d )     # splits the string: eg."000111110011" -> ["","000","","111","","110","","011"]
-        str_a = str_a.delete("")   # ["000", "111", "110", "011"]
-        str_a.each_index{ |i|
-            # the first bit of the element with an odd index is the sign of the floating number
-            str_a[2*i][0] == "0" ? sign = "+" : sign = "-"
-            # this returns: [ +00.7 , +2.6 ], each element in the array is in decimal codification
-            cr << ( sign+str_a[2*i][1..-1]+"."+str_a[2*i+1] ).to_i(2) if i <= str_a.size-2
-        }
-        return cr
+        rexp = Regexp.new( dots )  # converst dots into a regulare expression: /(...)/
+        str_a = str.split( rexp )  # splits the string: eg."000111110011" -> ["","000","","111","","110","","011"]
+        str_a = str_a.delete_if{ |v| v == ""}  # ["000", "111", "110", "011"]
+        str_a.size.times do |i| 
+            if i <= str_a.size-2
+                # the first bit of the element with an odd index is the sign of the floating number
+                str_a[ 2*i ][0..0] == "0" ? sign = "+" : sign = "-"
+                # this returns: [ +00.7 , +2.6 ], each element in the array is in decimal codification
+                cr << (sign+str_a[ 2*i ][1..-1].to_i(2).to_s+"."+str_a[2*i+1].to_i(2).to_s).to_f
+            end # if
+            return cr if cr.size == str_a.size / 2
+        end # str_a.size.times
     end # decode
   end # class Optimizer
 end # module GA
@@ -259,7 +261,7 @@ if __FILE__ == $0
   #f = lambda { |p| ( 1 - p[0] ) ** 2 + 100 * ( p[1] - p[0] ) ** 2 } # Rosenbroke function
   
   # Instantiate the optimizer, with tolerance and dimension
-  opt = GA::Optimizer.new( :tol => 1E-5,
+  opt = GA::Optimizer.new( :tol => 1E-3,
       :p_mutation  => 0.2,
       :p_crossover => 0.8,
       :i_o               => { :X =>[5,10] , :Y=>[-10.23,54.234] },
