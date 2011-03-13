@@ -43,15 +43,6 @@ module GA
         @prec = prec # the precision, i.e. the number considered at the left of the comma
     end
     
-    # Is the difference of the function value for the best and the worst chromosome 
-    # Input: array of hashes. Output: float
-    def norm
-        pop = @population.sort{ |x, y| y[:fitness] <=> x[:fitness] }
-        best = pop.first
-        worst = pop.last
-        return ( best[:fitness] - worst[:fitness] ).abs
-    end
-    
   end # class Population
 
   # Class that implements a general n-dimensional Nelder-Meade Method (NMM).
@@ -67,7 +58,7 @@ module GA
           :i_o        => {}   , # inverval of values used for define the first population
           :npop       => 50   , # number of population to be computed
           :pconv      => true ,
-          :plotopt    => {:title  => 'Genetic Algorithm Convergence',
+          :plotopt    => {:title  => 'Fitness',
                           :xlabel => 'No. iteration',
                           :ylabel => 'Objective function value',
                           :yrange => [ -10 , 10 ],
@@ -83,6 +74,7 @@ module GA
         @start_points = []
         @status = :filling
         @iteration = 0
+        @best = []
         if @cfg[:pconv] == true # this is the plot
             @gp = GNUPlotr.new
             # enable command history recording
@@ -95,7 +87,7 @@ module GA
             @gp.set_xlabel @cfg[:plotopt][:xlabel], :font => "Times New Roman,18"
             @gp.set_ylabel @cfg[:plotopt][:ylabel], :font => "Times New Roman,18"
             @gp.set_xrange( 0 .. @cfg[:npop])
-            @gp.set_yrange(@cfg[:plotopt][:yrange][0] .. @cfg[:plotopt][:yrange][1])
+            #@gp.set_yrange(@cfg[:plotopt][:yrange][0] .. @cfg[:plotopt][:yrange][1])
         end # if @cfg
     end 
      
@@ -118,13 +110,15 @@ module GA
             childs.each do |c|
                 dec =  decode( c[:bitstring] )
                 @population << {
-                 :bitstring  => c[:bitstring],
-                 :chromosome => dec,           # converts the string of bits into an array of floats   
-                 :fitness    => yield( dec )   # evaluates the array of floats  
+                    :bitstring  => c[:bitstring],
+                    :chromosome => dec,           # converts the string of bits into an array of floats   
+                    :fitness    => yield( dec )   # evaluates the array of floats  
                 }
             end # childs do
-            @best = @population.sort!{ |x, y| y[:fitness] <=> x[:fitness] }.first
-            puts "#{@iteration}st generation, best: #{@best[:chromosome]} ---> #{@best[:fitness]}"
+            @best << @population.sort!{ |x, y| y[:fitness] <=> x[:fitness] }.first
+            puts "#{@iteration}th generation, best: #{@best[0][:chromosome].inspect} ---> #{@best[0][:fitness]}"
+            puts "#{@iteration}th generation, best: #{@best[-1][:chromosome].inspect} ---> #{@best[-1][:fitness]}"
+            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop]
             puts "_________________________________________________________"
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
             if @cfg[:pconv] == true
@@ -132,26 +126,30 @@ module GA
                 @population.each{ |v| sdata << v[:fitness] }
                 sleep 0.1
                 # a. initialize the data sets for the plot
-                @gp.new_series
+                @gp.new_series(:population)
                 # b. fill the data sets
-                sdata.each_with_index { |v,i| @gp.series[ i.to_s.to_sym ] << [ @iteration , v ] }
+                sdata.each { |v| @gp.series[:population] << [ @iteration , v ] }
                 # c. close the data sets
-                @gp.series.close
+                @gp.series[:population].close
                 # d. plot the data sets
-                @iteration == 0 ? @gp.plot  :  @gp.replot
+                if @iteration == 0
+                    @gp.plot :population   ,  "with points"
+                else
+                    @gp.replot :population , "with points"
+                end
             end # if @cfg
             @iteration += 1
         end # until converged
-        return @best
+        return @best[-1]
     end # def loop
     
     private
     
-    # Input: @cfg. Output: boolean value
+    # The solution converges if the fitness for the best chromosome of the latter 3 population is the same
+    # Input: array of hashes. Output: boolean value
     def converged?
-      n = @pop.norm
-      if n then
-        @pop.norm < @cfg[:tol] # this returns true or false
+      if  @iteration >= 3 && @best[-1][:fitness] == @best[-2][:fitness] && @best[-1][:fitness] == @best[-3][:fitness] && @best[-3][:fitness] == @best[-2][:fitness]
+        true
       else
         false
       end
@@ -166,8 +164,7 @@ module GA
             p2 = selected[0] if i == selected.size - 1
             ch1 = {} ; ch2 = {} ; ch3 = {}
             ch1[:bitstring] , ch2[:bitstring] = crossover( p1, p2, p_cross )
-            children << ch1
-            children << ch2
+            children.concat( [ ch1 , ch2 ])
             # mutation
             p3 = (i.modulo(2) == 1) ? selected[i+1] : selected[i-1] # p3 is a chromosome not yet used
             ch3[:bitstring] = mutation( p3, p_mut )
@@ -209,9 +206,11 @@ module GA
     def crossover( father, mother, rate )
         raise "Error in crossover: father must be a String instead of a #{father.class}" unless father.kind_of? String
         raise "Error in crossover: mother must be a String instead of a #{mother.class}" unless mother.kind_of? String
-        return father , mother if rand >= rate # don't do the cross over if rand is maior or equal than the crossover probability 
-        point = (rand*mother.size).to_i # sets the crossover point randomly
-        return father[0..point-1] + mother[point..(mother.size)] , mother[0..point-1] + father[point..(father.size)]
+        # don't do the cross over if rand is maior or equal than the crossover probability 
+        return father , mother if rand >= rate
+        point = 0
+        point = (rand*mother.size).to_i while point == 0 or point == mother.size # sets the crossover point randomly
+        return father[0..point-1] + mother[point..(mother.size)] , mother[0..point-1] + father[point..(father.size)] 
     end
     
     # this is used to convert the input values into a binary string (the chromosome)
@@ -264,7 +263,7 @@ if __FILE__ == $0
   opt = GA::Optimizer.new( :tol => 1E-3,
       :p_mutation  => 0.2,
       :p_crossover => 0.8,
-      :i_o               => { :X =>[5,10] , :Y=>[-10.23,54.234] },
+      :i_o               => { :X =>[5,6] , :Y=>[-1.23,5.234] },
       :npop            => 50
     )
   opt.loop {|p| f.call(p)}
