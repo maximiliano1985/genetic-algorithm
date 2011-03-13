@@ -17,10 +17,9 @@ class Vector
   def inspect; "V[#{self.to_a * ","}]"; end
 end
 class Integer
-    def to_bin(size) # size is the number of bits used 
-        num = self.to_i # the integer part
-        bin = num.to_s(2)
-        bin.size <= size ? inc = (size - bin.size) : (raise "Use more bits for a proper binary convertion, you used #{size} bits for a #{bin.size} binary number")
+    def to_bin(siz) # size is the number of bits used 
+        bin = self.to_s(2)
+        bin.size <= siz ? inc = (siz - bin.size) : (raise "Use more bits for a proper binary convertion, you used #{size} bits for a #{bin.size} binary number")
         inc.times { bin = "0" +  bin }
         return bin
     end
@@ -42,22 +41,6 @@ module GA
             @population << { :chromosome => cr }
         end
         @prec = prec # the precision, i.e. the number considered at the left of the comma
-        self.max_bit
-    end
-    
-    # This method is used to find the maximum number of bits required to convert into a binary string
-    # all the chromosomes in the population
-    # Input: array of hashes. Output: Float
-    def max_bit # devo poter convertire in binario almeno il 999 ()
-        num_i = [] ; num_d = []
-        @population.each do |v|
-            num_i << v[:chromosome].max.to_i # the integer part of all the chromosomes
-            num_d << (  (v[:chromosome].max-num_i[-1])/@prec  ).to_i # the decimal part of all the chromosomes
-        end
-        max_i = num_i.sort[-1]
-        max_d = num_d.sort[-1]
-        @nbit = [ max_i.to_s(2).size , max_d.to_s(2).size ].max
-        return @nbit
     end
     
     # Is the difference of the function value for the best and the worst chromosome 
@@ -78,6 +61,7 @@ module GA
     def initialize(args = {})
         @cfg = {
           :tol        => 1E-3 , # accurancy of the solution 
+          :nbit       => 64   , # number of bits used to encode the cromosomes into a binary string
           :p_mutation => 0.2  , # probability of mutation
           :p_crossover=> 0.8  , # probability of cross over
           :i_o        => {}   , # inverval of values used for define the first population
@@ -93,6 +77,7 @@ module GA
         raise "Error with the assigned mutation probability:\n it is #{@cfg[:p_mutation]} but must be 0 <= p_mutation <= 1 " unless @cfg[:p_mutation] >= 0 and @cfg[:p_mutation] <= 1 
         raise "Error with the assigned crossover probability:\n it is #{@cfg[:p_crossover]} but must be 0 <= p_crossover <= 1 " unless @cfg[:p_crossover] >= 0 and @cfg[:p_crossover] <= 1 
         @cfg.merge! args
+        @nbit = @cfg[:nbit] #@pop.max_bit # is the number f bits required to encode into a binary string the chromosome
         @pop = Population.new( @cfg[:npop] , @cfg[:i_o])
         @population = @pop.population
         @start_points = []
@@ -117,25 +102,25 @@ module GA
     def loop( ary = nil )
         raise ArgumentError, "Block needed" unless block_given?
         # evaluates the cromosomes and converts them into a string of bits
-        @nbit = @pop.max_bit # is the number f bits required to encode into a binary string the chromosome
         @population.each do |c|
             c[:fitness]   = yield( c[:chromosome] ) # evaluates the chromosome
             c[:bitstring] = encode( c[:chromosome] ) # converts the chromosome into a string of bits
         end
         
         until converged? or @iteration > @cfg[:npop]
-            selected = Array.new( @population.size ){ |i| selection( @population ) }
+            selected = Array.new( @population.size ){ selection( @population )}
             bit_selected = []
-            selected.each{ |v| bit_selected << v[:bitstring] }
-            # childs_a is an array of floats. @population.size is used to set the number of chromosomes in the new generation
+            selected.each{ |v| bit_selected << v[0][:bitstring] }
+            # @population.size is used to set the number of chromosomes in the new generation
             childs = evolve( bit_selected, @population.size, @cfg[:p_crossover], @cfg[:p_mutation] ) 
             # child is converted into an array of hashes, each with keys: :chromosome, :bitstring , :fitness
             @population = [] # reset the population and then update it
             childs.each do |c|
+                p c
                 @population << {
-                 :bitstring  => c,    
                  :chromosome => decode( c ), # converts the string of bits into an array of floats
-                 :fitness    => yield( c.decode )# evaluates the array of floats  
+                 :bitstring  => c,    
+                 :fitness    => yield( decode( c ) )# evaluates the array of floats  
                 }
             end # childs do
 
@@ -164,9 +149,9 @@ module GA
     
     # Input: @cfg. Output: boolean value
     def converged?
-      n = @population.norm
+      n = @pop.norm
       if n then
-        @population.norm < @cfg[:tol] # this returns true or false
+        @pop.norm < @cfg[:tol] # this returns true or false
       else
         false
       end
@@ -180,13 +165,12 @@ module GA
             p2 = (i.modulo(2) == 0) ? selected[i+1] : selected[i-1] # i.modulo(2) is the reminder of the division i / 2 
             p2 = selected[0] if i == selected.size - 1
             ch1 = {} ; ch2 = {} ; ch3 = {}
-            ch1[:chromosome] , ch2[:chromosome] = crossover( p1[:chromosome], p2[:chromosome], p_cross )
+            ch1[:bitstring] , ch2[:bitstring] = crossover( p1, p2, p_cross )
             children << ch1
-            childern << ch2
-            
+            children << ch2
             # mutation
             p3 = (i.modulo(2) == 1) ? selected[i+1] : selected[i-1] # p3 is a chromosome not yet used
-            ch3[:chromosome] = mutation( p3[:chromosome], p_mut )
+            ch3[:bitstring] = mutation( p3, p_mut )
             children << ch3
             break if children.size >= pop_size
         end
@@ -201,7 +185,7 @@ module GA
         raise "Error in selection: input must be a Array instead of a #{pop.class}" unless pop.kind_of? Array
         i , j = rand( pop.size ) , rand(pop.size)
         j = rand(pop.size) while j == i # if unfortunatly j = i, evaluates j again
-        selected << (pop[i][:fitness] > pop[j][:fitness]) ? pop[i] : pop[j]
+        selected << ( (pop[i][:fitness] > pop[j][:fitness]) ? pop[i] : pop[j] )
         return selected
         # the size of selected is the half of the population size
     end
@@ -223,21 +207,25 @@ module GA
     # the crossover returns two childs.
     # Input: 2 bit strings + 1 float. Output: 2 bit strings
     def crossover( father, mother, rate )
-        raise "Error in crossover: input must be a String instead of a #{father.class}" unless father.kind_of? String
+        raise "Error in crossover: father must be a String instead of a #{father.class}" unless father.kind_of? String
+        raise "Error in crossover: mother must be a String instead of a #{mother.class}" unless mother.kind_of? String
         return father , mother if rand >= rate # don't do the cross over if rand is maior or equal than the crossover probability 
-        point == (rand*mother.size).to_i # sets the crossover point randomly
+        point = (rand*mother.size).to_i # sets the crossover point randomly
         return father[0..point] + mother[point..(mother.size)] , mother[0..point] + father[point..(father.size)]
     end
     
     # this is used to convert the input values into a binary string (the chromosome)
     # Input: array of floats. Output: one bit string
     def encode( ary = [] )
-        ary_b = []
+        ary_b = ""
         ary.each { |v|
-            ary_b << v.to_i.to_bin( @nbit )
-            ary_b << ( ( (v-v.to_i)*1000 ).to_i ).to_bin( @nbit )
+            i_b =  v.to_i.to_bin( @nbit )
+            # how to encode the sign: the first bit is 0 if i_b is >= 0, and 1 if it's < 0
+            i_b.to_i >= 0 ? i_b[0] = "0" : i_b[0] = "1"
+            d_b = ( ( (v-v.to_i)/@cfg[:tol] ).to_i ).to_bin( @nbit )
+            ary_b = i_b+d_b
         }
-        return ary_b*""
+        return ary_b
     end
     
     # this is used to decode the binary chromosome string  into an array of floats
@@ -247,12 +235,17 @@ module GA
         raise "Error in the chromosome decodification: you have #{ng} genes of #{@nbit} bits, and #{str.size} bits in the chromosome" unless ng * @nbit == str.size
         cr = []
         dots = "" 
-        @nbit.times{ dots += "." } # generates a string with @nbit dots: "....."
-        dots = "(" + dots + ")"    # adds the parentesys: "(.....)"
-        d = Regexp.new( dots )     # converst dots into a regulare expression: /(.....)/
-        str_a = str.split( d )     # splits the string: eg. "00000111112222233333" -> ["", "00000", "", "11111", "", "22222", "", "33333"]
-        str_a = str_a.delete("")   # ["00000", "11111", "22222", "33333"]
-        str_a.each_index{ |i| cr << ( str_a[2*i]+"."+str_a[2*i+1] ).to_i(2) if i <= str_a.size-2} # this returns: [ 00000.11111 , 22222.33333 ], each element in the array is in decimal codification
+        @nbit.times{ dots += "." } # generates a string with @nbit dots: "..."
+        dots = "(" + dots + ")"    # adds the parentesys: "(...)"
+        d = Regexp.new( dots )     # converst dots into a regulare expression: /(..)/
+        str_a = str.split( d )     # splits the string: eg."000111110011" -> ["","000","","111","","110","","011"]
+        str_a = str_a.delete("")   # ["000", "111", "110", "011"]
+        str_a.each_index{ |i|
+            # the first bit of the element with an odd index is the sign of the floating number
+            str_a[2*i][0] == "0" ? sign = "+" : sign = "-"
+            # this returns: [ +00.7 , +2.6 ], each element in the array is in decimal codification
+            cr << ( sign+str_a[2*i][1..-1]+"."+str_a[2*i+1] ).to_i(2) if i <= str_a.size-2
+        }
         return cr
     end # decode
   end # class Optimizer
