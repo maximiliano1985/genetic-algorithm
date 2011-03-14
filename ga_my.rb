@@ -100,9 +100,9 @@ module GA
         end
         
         until converged? or @iteration > @cfg[:npop]
-            selected = Array.new( @population.size ){ selection( @population )}
+            selected = selection( @population )
             bit_selected = []
-            selected.each{ |v| bit_selected << v[0][:bitstring] }
+            selected.each{ |v| bit_selected << v[:bitstring] }
             # @population.size is used to set the number of chromosomes in the new generation
             childs = evolve( bit_selected, @population.size, @cfg[:p_crossover], @cfg[:p_mutation] ) 
             # child is converted into an array of hashes, each with keys: :chromosome, :bitstring , :fitness
@@ -115,10 +115,10 @@ module GA
                     :fitness    => yield( dec )   # evaluates the array of floats  
                 }
             end # childs do
-            @best << @population.sort!{ |x, y| y[:fitness] <=> x[:fitness] }.first
-            puts "#{@iteration}th generation, best: #{@best[0][:chromosome].inspect} ---> #{@best[0][:fitness]}"
-            puts "#{@iteration}th generation, best: #{@best[-1][:chromosome].inspect} ---> #{@best[-1][:fitness]}"
-            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop]
+            @best << @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }.first
+            puts "#{@iteration}th generation, best: #{@best[0][:chromosome].inspect} ---> #{@best[0][:fitness]}" ###################################################
+            puts "#{@iteration}th generation, worst: #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:chromosome] } ---> #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:fitness] }" ###################################################
+            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] ###################################################
             puts "_________________________________________________________"
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
             if @cfg[:pconv] == true
@@ -159,6 +159,7 @@ module GA
     # Input: array of hashes. Output: boolean value
     def converged?
       if  @iteration >= 3 && @best[-1][:fitness] == @best[-2][:fitness] && @best[-1][:fitness] == @best[-3][:fitness] && @best[-3][:fitness] == @best[-2][:fitness]
+        p "Converged, the last three generations are identical."
         true
       else
         false
@@ -187,13 +188,15 @@ module GA
     # compares two chromosomes and selects the one with the best fitting.
     # This is a binary tournament.
     # Input: array of hashes. Output: array of hashes
-    def selection(pop)
-        selected = []
+    def selection(pop)###################################################
         raise "Error in selection: input must be a Array instead of a #{pop.class}" unless pop.kind_of? Array
-        i , j = rand( pop.size ) , rand(pop.size)
-        j = rand(pop.size) while j == i # if unfortunatly j = i, evaluates j again
-        selected << ( (pop[i][:fitness] > pop[j][:fitness]) ? pop[i] : pop[j] )
-        return selected
+        sel = []
+        pop.size.times do
+            i , j = rand( pop.size ) , rand( pop.size )
+            j = rand( pop.size ) while j == i # if unfortunatly j = i, evaluates j again
+            (pop[i][:fitness] > pop[j][:fitness]) ? sel << pop[i] : sel << pop[j]
+        end
+        return sel
         # the size of selected is the half of the population size
     end
     
@@ -218,8 +221,9 @@ module GA
         raise "Error in crossover: mother must be a String instead of a #{mother.class}" unless mother.kind_of? String
         # don't do the cross over if rand is maior or equal than the crossover probability 
         return father , mother if rand >= rate
+        raise "Error in crossover, father and mother must have the same dimension" unless father.size == mother.size
         point = 0
-        point = (rand*mother.size).to_i while point == 0 or point == mother.size # sets the crossover point randomly
+        point = rand(mother.size) while point == 0 or point == mother.size # sets the crossover point randomly
         return father[0..point-1] + mother[point..(mother.size)] , mother[0..point-1] + father[point..(father.size)] 
     end
     
