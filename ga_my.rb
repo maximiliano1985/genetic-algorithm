@@ -122,20 +122,30 @@ module GA
             puts "_________________________________________________________"
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
             if @cfg[:pconv] == true
-                sdata = [] if @iteration == 0 # at first iteration initialize the matrix containing simplex data
-                @population.each{ |v| sdata << v[:fitness] }
+                if @iteration == 0 # initialize the matrix containing simplex data
+                    sdata = []
+                    it = []
+                end
+                it << @iteration # array of integers
+                f_a = []
+                @population.each{ |v| f_a << v[:fitness] } # array of array of floats
+                sdata << f_a
                 sleep 0.1
                 # a. initialize the data sets for the plot
                 @gp.new_series(:population)
                 # b. fill the data sets
-                sdata.each { |v| @gp.series[:population] << [ @iteration , v ] }
+                it.each do |i|
+                    sdata[i].each do |v| 
+                        @gp.series[:population] << [ i , v ]
+                    end
+                end
                 # c. close the data sets
                 @gp.series[:population].close
                 # d. plot the data sets
                 if @iteration == 0
-                    @gp.plot :population   ,  "with points"
+                    @gp.plot :population   ,  "with points lt 9 pt 2 notitle"
                 else
-                    @gp.replot :population , "with points"
+                    @gp.replot :population , "with points lt 9 pt 2 notitle"
                 end
             end # if @cfg
             @iteration += 1
@@ -255,7 +265,7 @@ end # module GA
 
 if __FILE__ == $0
   # Test function
-  f = lambda {|p| p[0]**2 + 3*p[1]**2+10 } # a trivial parabola
+  f = lambda {|p| p[0]**2 + p[1]**2 } # a trivial parabola
   #f = lambda { |p| p[0] ** 2 - 4 * p[0] + p[1] ** 2  -p[1] - p[0] * p[1]}
   #f = lambda { |p| ( 1 - p[0] ) ** 2 + 100 * ( p[1] - p[0] ) ** 2 } # Rosenbroke function
   
