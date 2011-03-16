@@ -118,29 +118,40 @@ module GA
             end # childs do
             @sorted = @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }
             @best << @sorted.first
-            puts "#{@iteration}th generation, best: #{@best[0][:chromosome].inspect} ---> #{@best[0][:fitness]}" ##########
+            puts "#{@iteration}th generation, best: #{@best[-1][:chromosome].inspect} ---> #{@best[-1][:fitness]}" ##########
             puts "#{@iteration}th generation, worst: #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:chromosome].inspect } ---> #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:fitness] }" ###########
             "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] ##########
             puts "_________________________________________________________"
             
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
             if @cfg[:pconv] == true
+                
+                # a. initialize the data sets for the plot
+                @gp.new_series(:population)
+                
+                # b. fill the data sets
                 if @iteration == 0 # initialize the matrix containing simplex data
                     sdata = []
                     it = []
                 end
                 it << @iteration # array of integers
-                f_a = []
-                @population.each{ |v| f_a << v[:fitness] } # array of array of floats
-                sdata << f_a
-                sleep 0.1
-                # a. initialize the data sets for the plot
-                @gp.new_series(:population)
+
+                ### these lines are usefull to plot the evolution of entire population
+                #f_a = []
+                #@population.each{ |v| f_a << v[:fitness] } # array of array of floats
+                #sdata << f_a
                 # b. fill the data sets
+                #it.each do |i|
+                #    #sdata[i].each do |v| 
+                #    sdata.each do |v| 
+                #        @gp.series[:population] << [ i , v ]
+                #    end
+                #end
+                
+                ### these lines are used to track the best chromosome in the population
+                sdata << @best[-1][:fitness]
                 it.each do |i|
-                    sdata[i].each do |v| 
-                        @gp.series[:population] << [ i , v ]
-                    end
+                    @gp.series[:population] << [ i , sdata[i] ]
                 end
                 # c. close the data sets
                 @gp.series[:population].close
@@ -161,14 +172,20 @@ module GA
     # The solution converges if the fitness for the best chromosome of the latter 3 population is the same
     # Input: array of hashes. Output: boolean value
     def converged?
-      if  @iteration >= 3 && @best[0][:fitness] == @best[1][:fitness] && @best[0][:fitness] == @best[2][:fitness] && @best[2][:fitness] == @best[1][:fitness]
-        p "Converged, the last three generations are identical."
-        p "The best chromosome is #{@best[-1].inspect}"
-        true
-      else
-        false
-      end
-    end
+      if @iteration >= 3
+          xx = []
+          3.times{ |t| xx << ( ( @best[-1*(t+1) ][:fitness]*1000).round )*0.001 }
+          # for me @best[0][:fitness].round(3) doesn't work
+          
+          if xx[0] == xx[1] && xx[1] == xx[2] && xx[2] == xx[0]
+              p "Converged, the last three generations are identical."
+              p "The best chromosome is #{@best[-1].inspect}"
+              true
+          else
+              false
+          end # if a
+      end # @if iteration
+    end # converged
     
     # Input: array of bit strings. Output: array of bit strings
     def evolve( selected, pop_size, p_cross, p_mut ) 
@@ -278,7 +295,7 @@ module GA
         end # str_a.size.times
     end # decode
   end # class Optimizer
-end # module GA
+end # module GA#
 
 
 if __FILE__ == $0
@@ -289,10 +306,10 @@ if __FILE__ == $0
   
   # Instantiate the optimizer, with tolerance and dimension
   opt = GA::Optimizer.new( :tol => 1E-3,
-      :p_mutation  => 0.2,
+      :p_mutation  => 0.4,
       :p_crossover => 0.8,
       :i_o         => { :X =>[5,10] , :Y=>[-10.23,5.234] },
-      :npop        => 100,
+      :npop        => 50,
       :ncr         => 150
     )
   opt.loop {|p| f.call(p)}
