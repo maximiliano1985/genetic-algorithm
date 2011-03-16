@@ -158,8 +158,10 @@ module GA
                 # d. plot the data sets
                 if @iteration == 0
                     @gp.plot :population   ,  "with points lt 9 pt 2 notitle"
+                    @gp.plot :population   ,  "with line lt 9 pt 2 notitle"
                 else
                     @gp.replot :population , "with points lt 9 pt 2 notitle"
+                    @gp.plot :population   ,  "with line lt 9 pt 2 notitle"
                 end
             end # if @cfg
             @iteration += 1
