@@ -7,7 +7,7 @@
 
 require 'rubygems'
 require 'gnuplotr'
-require './lib/genetic_algorithm'
+require '../lib/genetic_algorithm'
 # Test function
 f = lambda {|p| p[0]**2 + p[1]**2 } # a trivial parabola
   
