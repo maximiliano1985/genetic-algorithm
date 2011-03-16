@@ -57,6 +57,7 @@ module GA
           :p_crossover=> 0.8  , # probability of cross over
           :i_o        => {}   , # inverval of values used for define the first population
           :npop       => 50   , # number of population to be computed
+          :ncr        => 100  , # number of chromosomes in each population
           :pconv      => true ,
           :plotopt    => {:title  => 'Fitness',
                           :xlabel => 'No. iteration',
@@ -69,7 +70,7 @@ module GA
         raise "Error with the assigned crossover probability:\n it is #{@cfg[:p_crossover]} but must be 0 <= p_crossover <= 1 " unless @cfg[:p_crossover] >= 0 and @cfg[:p_crossover] <= 1 
         @cfg.merge! args
         @nbit = @cfg[:nbit] #@pop.max_bit # is the number f bits required to encode into a binary string the chromosome
-        @pop = Population.new( @cfg[:npop] , @cfg[:i_o])
+        @pop = Population.new( @cfg[:ncr] , @cfg[:i_o])
         @population = @pop.population
         @start_points = []
         @status = :filling
@@ -115,11 +116,13 @@ module GA
                     :fitness    => yield( dec )   # evaluates the array of floats  
                 }
             end # childs do
-            @best << @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }.first
-            puts "#{@iteration}th generation, best: #{@best[0][:chromosome].inspect} ---> #{@best[0][:fitness]}" ###################################################
-            puts "#{@iteration}th generation, worst: #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:chromosome] } ---> #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:fitness] }" ###################################################
-            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] ###################################################
+            @sorted = @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }
+            @best << @sorted.first
+            puts "#{@iteration}th generation, best: #{@best[0][:chromosome].inspect} ---> #{@best[0][:fitness]}" ##########
+            puts "#{@iteration}th generation, worst: #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:chromosome].inspect } ---> #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:fitness] }" ###########
+            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] ##########
             puts "_________________________________________________________"
+            
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
             if @cfg[:pconv] == true
                 if @iteration == 0 # initialize the matrix containing simplex data
@@ -158,8 +161,9 @@ module GA
     # The solution converges if the fitness for the best chromosome of the latter 3 population is the same
     # Input: array of hashes. Output: boolean value
     def converged?
-      if  @iteration >= 3 && @best[-1][:fitness] == @best[-2][:fitness] && @best[-1][:fitness] == @best[-3][:fitness] && @best[-3][:fitness] == @best[-2][:fitness]
+      if  @iteration >= 3 && @best[0][:fitness] == @best[1][:fitness] && @best[0][:fitness] == @best[2][:fitness] && @best[2][:fitness] == @best[1][:fitness]
         p "Converged, the last three generations are identical."
+        p "The best chromosome is #{@best[-1].inspect}"
         true
       else
         false
@@ -171,13 +175,23 @@ module GA
         children = []
         selected.each_with_index do |p1, i|
             # crossing over
-            p2 = (i.modulo(2) == 0) ? selected[i+1] : selected[i-1] # i.modulo(2) is the reminder of the division i / 2 
-            p2 = selected[0] if i == selected.size - 1
+            ############################## non me piase sto metodo di scelgiere moglie e marito
+            # 1 ::: p2 = (i.modulo(2) == 0) ? selected[i+1] : selected[i-1] # i.modulo(2) is the reminder of the division i / 2 
+            #       p2 = selected[0] if i == selected.size - 1
+            # 2 ::: i == selected.size-1 ? p2 = selected[0] : p2 = selected[i+1] 
+            # 3 ::: random choise:
+            j = rand(selected.size)
+            j = rand(selected.size) while j == i
+            p2 = selected[j]
             ch1 = {} ; ch2 = {} ; ch3 = {}
             ch1[:bitstring] , ch2[:bitstring] = crossover( p1, p2, p_cross )
-            children.concat( [ ch1 , ch2 ])
+            children.concat( [ ch1 , ch2 ] )
+            
             # mutation
-            p3 = (i.modulo(2) == 1) ? selected[i+1] : selected[i-1] # p3 is a chromosome not yet used
+            #i.modulo(2) == 1 ? p3 = selected[i+1] : p3 = selected[i-1] # p3 is a chromosome not yet used
+            k = rand(selected.size)
+            k = rand(selected.size) while k == j and k == i # random choise of the chromosome that might mutate
+            p3 = selected[k]
             ch3[:bitstring] = mutation( p3, p_mut )
             children << ch3
             break if children.size >= pop_size
@@ -186,18 +200,18 @@ module GA
     end
     
     # compares two chromosomes and selects the one with the best fitting.
+    # the size of selected is the half of the population size
     # This is a binary tournament.
     # Input: array of hashes. Output: array of hashes
-    def selection(pop)###################################################
+    def selection(pop)
         raise "Error in selection: input must be a Array instead of a #{pop.class}" unless pop.kind_of? Array
         sel = []
         pop.size.times do
             i , j = rand( pop.size ) , rand( pop.size )
             j = rand( pop.size ) while j == i # if unfortunatly j = i, evaluates j again
-            (pop[i][:fitness] > pop[j][:fitness]) ? sel << pop[i] : sel << pop[j]
+            (pop[i][:fitness] < pop[j][:fitness]) ? sel << pop[i] : sel << pop[j]
         end
         return sel
-        # the size of selected is the half of the population size
     end
     
     # the chromosome is a string of '0' and '1', rate [0,1]. mutant is also a string
@@ -277,8 +291,9 @@ if __FILE__ == $0
   opt = GA::Optimizer.new( :tol => 1E-3,
       :p_mutation  => 0.2,
       :p_crossover => 0.8,
-      :i_o               => { :X =>[5,6] , :Y=>[-1.23,5.234] },
-      :npop            => 50
+      :i_o         => { :X =>[5,10] , :Y=>[-10.23,5.234] },
+      :npop        => 100,
+      :ncr         => 150
     )
   opt.loop {|p| f.call(p)}
 end
