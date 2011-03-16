@@ -16,12 +16,14 @@ class Vector
   # More compact inspect version
   def inspect; "V[#{self.to_a * ","}]"; end
 end
+
 class Integer
-    def to_bin(siz) # size is the number of bits used 
+    def to_bin(s) # size is the number of bits used 
         bin = self.to_s(2)
-        bin.size <= siz ? inc = (siz - bin.size) : (raise "Use more bits for a proper binary convertion, you used #{size} bits for a #{bin.size} binary number")
-        inc.times { bin = "0" +  bin }
-        return bin
+        unless bin.size <= s then
+          warn "WARNING: Given bit length #{s} canot hold a #{bin.size} bits binary number.\nIt has been automatically expanded to bin.size"
+        end
+        return bin.rjust(s, "0")
     end
 end
 
@@ -29,18 +31,28 @@ module GA
   class Population
     attr_reader :population , :nbit
 
-    # i_o is the inverval of values used for define the first population
-    # values for the parameters of the first population
+    # i_o is the inverval of values used for defining the
+    # values of parameters of first population
     def initialize( dim, i_o = {}, prec = 1E-3 )
-        raise ArgumentError, "Need an Hash instead of #{i_o.class}" unless i_o.kind_of? Hash
-        @population = [] # initialize the population, is an hash which keys are: :chromosome and :fitness
-        dim.times do # for each chromosome of the initial population do...
-            cr = []
-            # generate the gene randomly (it must lie in the domain defined by i_o)
-            i_o.each_value{ |v| cr << rand()*(v.max-v.min) + v.min }
-            @population << { :chromosome => cr }
-        end
-        @prec = prec # the precision, i.e. the number considered at the left of the comma
+      unless i_o.kind_of? Hash then
+        raise ArgumentError, "Need an Hash instead of #{i_o.class}" 
+      end
+      
+      # initialize the population, it is an array of hashes which keys 
+      # are :chromosome and :fitness
+      @population = []
+      
+      dim.times do # for each chromosome of the initial population do...
+          cr = []
+          # generate the gene randomly 
+          #(it must lie in the domain defined by i_o)
+          i_o.each_value{ |v| cr << rand()*(v.max-v.min) + v.min }
+          @population << { :chromosome => cr }
+      end
+      
+      # sets the precision, i.e. the number at the left of 
+      # the decimal separator
+      @prec = prec 
     end
     
   end # class Population
