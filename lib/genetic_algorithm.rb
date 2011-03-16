@@ -59,13 +59,13 @@ module GA
           :npop       => 50   , # number of population to be computed
           :ncr        => 100  , # number of chromosomes in each population
           :pconv      => true ,
-          :plotopt    => {:title  => 'Fitness',
-                          :xlabel => 'No. iteration',
+          :plotopt    => {:xlabel => 'No. iteration',
                           :ylabel => 'Objective function value',
                           :yrange => [ -10 , 10 ],
                           :grid   => "set grid"
                          }
         }
+        @cfg[:plotopt][:title] = "Population size: #{@cfg[:ncr]} chromosomes"
         raise "Error with the assigned mutation probability:\n it is #{@cfg[:p_mutation]} but must be 0 <= p_mutation <= 1 " unless @cfg[:p_mutation] >= 0 and @cfg[:p_mutation] <= 1 
         raise "Error with the assigned crossover probability:\n it is #{@cfg[:p_crossover]} but must be 0 <= p_crossover <= 1 " unless @cfg[:p_crossover] >= 0 and @cfg[:p_crossover] <= 1 
         @cfg.merge! args
@@ -308,7 +308,7 @@ if __FILE__ == $0
   
   # Instantiate the optimizer, with tolerance and dimension
   opt = GA::Optimizer.new( :tol => 1E-3,
-      :p_mutation  => 0.4,
+      :p_mutation  => 0.2,
       :p_crossover => 0.8,
       :i_o         => { :X =>[5,10] , :Y=>[-10.23,5.234] },
       :npop        => 50,

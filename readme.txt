@@ -1,5 +1,20 @@
+# author: Carlos Maximiliano Giorgio Bort
+# date: 16/03/2011
+
+This is a simple implementation of a genetic algorithm.
+
 This library works with Ruby 1.9.2 or newer versions
+Together with this gem you may install:
+- gnuplot (if you have a mac you can do this via mac port) 
+- gnuolotr which is a gem that you can install simply typing into your terminal: gem install gnuplotr
+Gnuplot and gnuplotr are used to plot the evolution of the best chromosome in the population.
 
-binary_cod.rb -> is a test file in which I test the binary codification and decodification of cromosomes
+Run the test.rb to test the algorithm. Otherwise you can just the run ga_gem.rb file.
 
-WORK IN PROGRESS, BE PATIENT
+
+Note: If you are using a mac, maybe you'll need to install the newer version of ruby. Try the rvm: Ruby Version Manager!
+
+If you find some bugs please contact me at:
+maximiliano_giorgio@yahoo.it
+
+Have a nice day!!
