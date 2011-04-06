@@ -51,7 +51,7 @@ module GA
     attr_reader :simplex, :status, :iteration
     def initialize(args = {})
         @cfg = {
-          :tol        => 1E-3 , # accurancy of the solution 
+          :toll       => 1E-3 , # accurancy of the solution 
           :nbit       => 10   , # number of bits used to encode the cromosomes into a binary string
           :p_mutation => 0.2  , # probability of mutation
           :p_crossover=> 0.8  , # probability of cross over
@@ -174,19 +174,15 @@ module GA
     # The solution converges if the fitness for the best chromosome of the latter 3 population is the same
     # Input: array of hashes. Output: boolean value
     def converged?
-      if @iteration >= 3
-          xx = []
-          3.times{ |t| xx << ( ( @best[-1*(t+1) ][:fitness]*1000).round )*0.001 }
-          # for me @best[0][:fitness].round(3) doesn't work
-          
-          if xx[0] == xx[1] && xx[1] == xx[2] && xx[2] == xx[0]
-              p "Converged, the last three generations are identical."
-              p "The best chromosome is #{@best[-1].inspect}"
+      if @iteration > 1 
+          xx = 0.0
+          3.times{ |p| xx += @sorted[p-1][:fitness]**2 }
+          if xx**0.5 <= @cfg[:toll]
               true
           else
               false
-          end # if a
-      end # @if iteration
+          end # if xx
+      end # if @iteration
     end # converged
     
     # Input: array of bit strings. Output: array of bit strings
