@@ -59,7 +59,7 @@ module GA
           :npop       => 50   , # number of population to be computed
           :ncr        => 100  , # number of chromosomes in each population
           :pconv      => true ,
-          :nelitist   => 1    , # the 'n' best chromosomes that will automatically be copied in the new population
+          :nelitist   => 3    , # the 'n' best chromosomes that will automatically be copied in the new population
           :plotopt    => {:xlabel => 'No. iteration',
                           :ylabel => 'Objective function value',
                           :yrange => [ -10 , 10 ],
@@ -120,8 +120,8 @@ module GA
             end # childs do
             @sorted = @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }
             @best << @sorted.first
-            puts "#{@iteration}th generation, best: #{@best.last[:chromosome].inspect} ---> #{@best[-1][:fitness]}" ##########
-            puts "#{@iteration}th generation, worst: #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:chromosome].inspect } ---> #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:fitness] }" ###########
+            puts "#{@iteration}th generation, best: #{@best.last.inspect}" ##########
+            puts "#{@iteration}th generation, worst: #{ @sorted.last.inspect }" ###########
             "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] 
             puts "_________________________________________________________"
             
@@ -310,7 +310,7 @@ if __FILE__ == $0
       :p_crossover => 0.8,
       :i_o         => { :X =>[5,10] , :Y=>[-10.23,5.234] },
       :npop        => 50,
-      :ncr         => 150
+      :ncr         => 200
     )
   opt.loop {|p| f.call(p)}
 end
