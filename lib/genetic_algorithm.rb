@@ -59,6 +59,7 @@ module GA
           :npop       => 50   , # number of population to be computed
           :ncr        => 100  , # number of chromosomes in each population
           :pconv      => true ,
+          :nelitist   => 1    , # the 'n' best chromosomes that will automatically be copied in the new population
           :plotopt    => {:xlabel => 'No. iteration',
                           :ylabel => 'Objective function value',
                           :yrange => [ -10 , 10 ],
@@ -96,18 +97,19 @@ module GA
         raise ArgumentError, "Block needed" unless block_given?
         # evaluates the cromosomes and converts them into a string of bits
         @population.each do |c|
-            c[:fitness]   = yield( c[:chromosome] ) # evaluates the chromosome
-            c[:bitstring] = encode( c[:chromosome] ) # converts the chromosome into a string of bits
+            c[:fitness]   = yield( c[:chromosome] )  unless  c[:fitness]   # evaluates the chromosome
+            c[:bitstring] = encode( c[:chromosome] ) unless c[:bitstring] # converts the chromosome into a string of bits
         end
         
         until converged? or @iteration > @cfg[:npop]
+            @sorted = @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }
             selected = selection( @population )
             bit_selected = []
             selected.each{ |v| bit_selected << v[:bitstring] }
             # @population.size is used to set the number of chromosomes in the new generation
-            childs = evolve( bit_selected, @population.size, @cfg[:p_crossover], @cfg[:p_mutation] ) 
+            childs = evolve( bit_selected, @population.size-@cfg[:nelitist] , @cfg[:p_crossover], @cfg[:p_mutation] ) 
             # child is converted into an array of hashes, each with keys: :chromosome, :bitstring , :fitness
-            @population = [] # reset the population and then update it
+            @population = @sorted[ 0 .. @cfg[:nelitist]-1 ] # reset the population and then update it
             childs.each do |c|
                 dec =  decode( c[:bitstring] )
                 @population << {
@@ -118,9 +120,9 @@ module GA
             end # childs do
             @sorted = @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] }
             @best << @sorted.first
-            puts "#{@iteration}th generation, best: #{@best[-1][:chromosome].inspect} ---> #{@best[-1][:fitness]}" ##########
+            puts "#{@iteration}th generation, best: #{@best.last[:chromosome].inspect} ---> #{@best[-1][:fitness]}" ##########
             puts "#{@iteration}th generation, worst: #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:chromosome].inspect } ---> #{ ( @population.sort!{ |x, y| x[:fitness] <=> y[:fitness] } ).last[:fitness] }" ###########
-            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] ##########
+            "Maximum number of iteration reached: #{@cfg[:npop]}" if @iteration == @cfg[:npop] 
             puts "_________________________________________________________"
             
             # these lines ar used to do a convergence plot, i.e. all the fitnesses for the current population
@@ -251,7 +253,7 @@ module GA
         # don't do the cross over if rand is maior or equal than the crossover probability 
         return father , mother if rand >= rate
         raise "Error in crossover, father and mother must have the same dimension" unless father.size == mother.size
-        point = 0
+        point = 0.0
         point = rand(mother.size) while point == 0 or point == mother.size # sets the crossover point randomly
         return father[0..point-1] + mother[point..(mother.size)] , mother[0..point-1] + father[point..(father.size)] 
     end
@@ -303,7 +305,7 @@ if __FILE__ == $0
   #f = lambda { |p| ( 1 - p[0] ) ** 2 + 100 * ( p[1] - p[0] ) ** 2 } # Rosenbroke function
   
   # Instantiate the optimizer, with tolerance and dimension
-  opt = GA::Optimizer.new( :tol => 1E-3,
+  opt = GA::Optimizer.new( :tol => 1,
       :p_mutation  => 0.2,
       :p_crossover => 0.8,
       :i_o         => { :X =>[5,10] , :Y=>[-10.23,5.234] },
