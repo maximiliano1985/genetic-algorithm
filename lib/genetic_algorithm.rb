@@ -166,6 +166,7 @@ module GA
                     @gp.plot :population   ,  "with line lt 9 pt 2 notitle"
                 end
             end # if @cfg
+            ary[ @iteration.to_s.to_sym ] = @sorted if ary.kind_of? Hash
             @iteration += 1
         end # until converged
         return @best[-1]
@@ -312,5 +313,7 @@ if __FILE__ == $0
       :npop        => 50,
       :ncr         => 200
     )
-  opt.loop {|p| f.call(p)}
+  arr = {}
+  opt.loop(arr) {|p| f.call(p)}
+  p arr[:"50"]
 end
